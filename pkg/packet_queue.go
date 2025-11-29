@@ -7,33 +7,33 @@ import (
 
 type PacketQueue struct {
 	sync.Mutex
-	Items []interface{}
+	Items []AppPacket
 }
 
-func (q *PacketQueue) Push(item interface{}) {
+func (q *PacketQueue) Push(item AppPacket) {
 	q.Lock()
 	defer q.Unlock()
 	q.Items = append(q.Items, item)
 }
 
-func (q *PacketQueue) Pop() (interface{}, error) {
+func (q *PacketQueue) Pop() (AppPacket, error) {
 	q.Lock()
 	defer q.Unlock()
 	if len(q.Items) == 0 {
-		return nil, errors.New("queue is empty")
+		return AppPacket{}, errors.New("queue is empty")
 	}
 	packetToReturn := q.Items[0]
 	q.Items = q.Items[1:]
 	return packetToReturn, nil
 }
 
-func (q *PacketQueue) PushMultiple(items []interface{}) {
+func (q *PacketQueue) PushMultiple(items []AppPacket) {
 	q.Lock()
 	defer q.Unlock()
 	q.Items = append(q.Items, items...)
 }
 
-func (q *PacketQueue) PopMultiple(count int) ([]interface{}, error) {
+func (q *PacketQueue) PopMultiple(count int) ([]AppPacket, error) {
 	q.Lock()
 	defer q.Unlock()
 	if len(q.Items) == 0 {

@@ -39,8 +39,8 @@ const (
 var outputfile = "output.pcap"
 var packetfilter = "tcp"
 
-var packetQueue = PacketQueue{
-	Items: make([]interface{}, 0),
+var PacketsToCaptureQueue = PacketQueue{
+	Items: make([]AppPacket, 0),
 	Mutex: sync.Mutex{},
 }
 
@@ -75,7 +75,13 @@ func (d *Device) Start() {
 	source := gopacket.NewPacketSource(handler, handler.LinkType())
 
 	for packet := range source.Packets() {
-		packetQueue.Push(packet)
+		log.Println("Pushing packet to queue")
+		PacketsToCaptureQueue.Push(AppPacket{
+			Data:      packet,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			DeviceID:  d.Name,
+		})
 	}
 
 }
