@@ -1,10 +1,10 @@
 package pkg
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/google/gopacket"
@@ -38,8 +38,11 @@ const (
 
 var outputfile = "output.pcap"
 var packetfilter = "tcp"
-var packetstocapture = 0
-var numpackets = 0
+
+var packetQueue = PacketQueue{
+	Items: make([]interface{}, 0),
+	Mutex: sync.Mutex{},
+}
 
 // Start capturing packets
 func (d *Device) Start() {
@@ -72,22 +75,7 @@ func (d *Device) Start() {
 	source := gopacket.NewPacketSource(handler, handler.LinkType())
 
 	for packet := range source.Packets() {
-		// Increase the number of packets we have processed
-		numpackets = numpackets + 1
-
-		// Print details of the packet
-		fmt.Printf("%v\n", packet)
-
-		// Check if we should write the packe to disk
-		if outputfile != "" {
-			w.WritePacket(packet.Metadata().CaptureInfo, packet.Data())
-		}
-
-		// Break if we captured all the packets we wanted
-		if packetstocapture != 0 && numpackets >= packetstocapture {
-			log.Printf("Done capturing %d packets\n", packetstocapture)
-			break
-		}
+		packetQueue.Push(packet)
 	}
 
 }
