@@ -32,13 +32,18 @@ type SqlLitePacketRepository struct {
 
 func (r *SqlLitePacketRepository) SavePacket(packet AppPacket) error {
 	query := `
-		INSERT INTO packets (data, created_at, updated_at, device_id)
-		VALUES (?, ?, ?, ?)
+	INSERT INTO packets (source_ip, destination_ip, source_port, destination_port, protocol, created_at, updated_at, device_id)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	_, err := r.db.Exec(query, packet.Data.Dump(), packet.CreatedAt, packet.UpdatedAt, packet.DeviceID)
+	sourceIP := packet.Data.NetworkLayer().NetworkFlow().Src().String()
+	destinationIP := packet.Data.NetworkLayer().NetworkFlow().Dst().String()
+	sourcePort := packet.Data.TransportLayer().TransportFlow().Src().String()
+	destinationPort := packet.Data.TransportLayer().TransportFlow().Dst().String()
+	protocol := packet.Data.TransportLayer().LayerType().String()
+	_, err := r.db.Exec(query, sourceIP, destinationIP, sourcePort, destinationPort, protocol, packet.CreatedAt, packet.UpdatedAt, packet.DeviceID)
 	if err != nil {
 		log.Fatal(err)
-		panic(err)
+		return err
 	}
 	return nil
 }

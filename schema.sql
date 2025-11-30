@@ -1,7 +1,11 @@
 --CREATE IF DOES NOT EXIST
 CREATE TABLE IF NOT EXISTS packets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    data TEXT,
+    source_ip TEXT,
+    destination_ip TEXT,
+    source_port INTEGER,
+    destination_port INTEGER,
+    protocol TEXT,
     created_at DATETIME,
     updated_at DATETIME,
     device_id INTEGER,
