@@ -4,7 +4,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/google/gopacket"
@@ -40,8 +39,7 @@ var outputfile = "output.pcap"
 var packetfilter = "tcp"
 
 var PacketsToCaptureQueue = PacketQueue{
-	Items: make([]AppPacket, 0),
-	Mutex: sync.Mutex{},
+	ItemsChan: make(chan AppPacket),
 }
 
 // Start capturing packets

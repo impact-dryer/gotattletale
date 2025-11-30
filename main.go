@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"log"
-	"time"
 
 	"github.com/impact-dryer/gotattletale/pkg"
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
@@ -22,28 +21,14 @@ func main() {
 		Description: "Ethernet interface",
 	}
 	repository := pkg.NewSqlLitePacketRepository(tattletaleDb)
-	ticker := time.NewTicker(5 * time.Second)
-	quit := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				log.Println("Popping packet from queue")
-				packets, err := pkg.PacketsToCaptureQueue.PopMultiple(100)
-				if err != nil {
-					log.Println("Error popping packets from queue", err)
-				} else {
-					log.Println("Saving packet to database")
-					err = repository.SavePackets(packets)
-					if err != nil {
-						log.Fatal(err)
-					}
-				}
-			case <-quit:
-				ticker.Stop()
-				return
-			}
+	go dev.Start()
+	for v, ok := <-pkg.PacketsToCaptureQueue.ItemsChan; ok; v, ok = <-pkg.PacketsToCaptureQueue.ItemsChan {
+		log.Println("Saving packet to database", v)
+		log.Println("Packet data", v.Data.Dump())
+		err = repository.SavePacket(v)
+		if err != nil {
+			log.Fatal(err)
+			panic(err)
 		}
-	}()
-	dev.Start()
+	}
 }
