@@ -2,8 +2,9 @@ package pkg
 
 import (
 	"database/sql"
-	"log"
+	"errors"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/gopacket"
@@ -41,23 +42,13 @@ func (r *SqlLitePacketRepository) SavePacket(packet AppPacket) error {
 	destinationPort := packet.Data.TransportLayer().TransportFlow().Dst().String()
 	protocol := packet.Data.TransportLayer().LayerType().String()
 	_, err := r.db.Exec(query, sourceIP, destinationIP, sourcePort, destinationPort, protocol, packet.CreatedAt, packet.UpdatedAt, packet.DeviceID)
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	return nil
+	return err
 }
 
 func (r *SqlLitePacketRepository) SavePackets(packets []AppPacket) error {
-	query := `
-		INSERT INTO packets (data, created_at, updated_at, device_id)
-		VALUES (?, ?, ?, ?)
-	`
 	for _, packet := range packets {
-		_, err := r.db.Exec(query, packet.Data.Dump(), packet.CreatedAt, packet.UpdatedAt, packet.DeviceID)
-		if err != nil {
-			log.Fatal(err)
-			panic(err)
+		if err := r.SavePacket(packet); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -81,27 +72,35 @@ func (r *SqlLitePacketRepository) UpdatePacket(packet AppPacket) error {
 
 // Initialize the schema for the database from schema.sql file
 func ReadSchemaFile(filename string) (string, error) {
-	schema, err := os.ReadFile(filename)
-	if err != nil {
-		log.Fatal(err)
-		panic(err)
+	pathsToTry := []string{filename}
+	if !filepath.IsAbs(filename) {
+		pathsToTry = append(pathsToTry, filepath.Join("..", filename))
 	}
-	return string(schema), nil
+
+	var lastErr error
+	for _, path := range pathsToTry {
+		schema, err := os.ReadFile(path)
+		if err == nil {
+			return string(schema), nil
+		}
+		lastErr = err
+	}
+	return "", lastErr
 }
 func InitSchema(db *sql.DB) error {
-	schema, err := ReadSchemaFile("schema.sql")
+	if db == nil {
+		return errors.New("nil database handle")
+	}
+	schema, err := schemaFileReader("schema.sql")
 	if err != nil {
-		log.Fatal(err)
-		panic(err)
+		return err
 	}
 	_, err = db.Exec(schema)
-	if err != nil {
-		log.Fatal(err)
-		panic(err)
-	}
-	return nil
+	return err
 }
 
 func NewSqlLitePacketRepository(db *sql.DB) *SqlLitePacketRepository {
 	return &SqlLitePacketRepository{db: db}
 }
+
+var schemaFileReader = ReadSchemaFile
