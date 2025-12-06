@@ -1,13 +1,14 @@
 package pkg
 
 import (
-	"database/sql"
-	"errors"
-	"os"
-	"path/filepath"
+	"log"
+	"strconv"
 	"time"
 
 	"github.com/google/gopacket"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 type AppPacket struct {
@@ -18,48 +19,91 @@ type AppPacket struct {
 	DeviceID  string
 }
 
+type SavedPacket struct {
+	ID              uint      `gorm:"primaryKey"`
+	SourceIP        string    `gorm:"not null"`
+	DestinationIP   string    `gorm:"not null"`
+	SourcePort      int       `gorm:"not null"`
+	DestinationPort int       `gorm:"not null"`
+	Protocol        string    `gorm:"not null"`
+	CreatedAt       time.Time `gorm:"not null"`
+	UpdatedAt       time.Time `gorm:"not null"`
+	DeviceID        string    `gorm:"not null"`
+}
+
 type PacketRepository interface {
 	SavePacket(packet AppPacket) error
 	SavePackets(packets []AppPacket) error
-	GetPackets() ([]AppPacket, error)
-	GetPacket(packetID string) (AppPacket, error)
+	GetPackets() ([]SavedPacket, error)
+	GetPacket(packetID string) (SavedPacket, error)
 	DeletePacket(packetID string) error
 	UpdatePacket(packet AppPacket) error
 }
 
 type SqlLitePacketRepository struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 func (r *SqlLitePacketRepository) SavePacket(packet AppPacket) error {
-	query := `
-	INSERT INTO packets (source_ip, destination_ip, source_port, destination_port, protocol, created_at, updated_at, device_id)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`
+	savedPacket, err := mapPacketToSavedPacket(packet)
+	if err != nil {
+		return err
+	}
+	r.db.Create(savedPacket)
+	return nil
+}
+
+func mapPacketToSavedPacket(packet AppPacket) (*SavedPacket, error) {
 	sourceIP := packet.Data.NetworkLayer().NetworkFlow().Src().String()
 	destinationIP := packet.Data.NetworkLayer().NetworkFlow().Dst().String()
 	sourcePort := packet.Data.TransportLayer().TransportFlow().Src().String()
 	destinationPort := packet.Data.TransportLayer().TransportFlow().Dst().String()
 	protocol := packet.Data.TransportLayer().LayerType().String()
-	_, err := r.db.Exec(query, sourceIP, destinationIP, sourcePort, destinationPort, protocol, packet.CreatedAt, packet.UpdatedAt, packet.DeviceID)
-	return err
+	sourcePortInt, err := strconv.Atoi(sourcePort)
+	if err != nil {
+		return nil, err
+	}
+	destinationPortInt, err := strconv.Atoi(destinationPort)
+	if err != nil {
+		return nil, err
+	}
+	savedPacket := &SavedPacket{
+		SourceIP:        sourceIP,
+		DestinationIP:   destinationIP,
+		SourcePort:      sourcePortInt,
+		DestinationPort: destinationPortInt,
+		Protocol:        protocol,
+		CreatedAt:       packet.CreatedAt,
+		UpdatedAt:       packet.UpdatedAt,
+		DeviceID:        packet.DeviceID,
+	}
+	return savedPacket, nil
 }
 
 func (r *SqlLitePacketRepository) SavePackets(packets []AppPacket) error {
-	for _, packet := range packets {
-		if err := r.SavePacket(packet); err != nil {
+	mapedPackets := make([]*SavedPacket, len(packets))
+	for i, packet := range packets {
+		packet, err := mapPacketToSavedPacket(packet)
+		if err != nil {
 			return err
 		}
+		mapedPackets[i] = packet
 	}
+	r.db.Create(mapedPackets)
 	return nil
 }
 
-func (r *SqlLitePacketRepository) GetPackets() ([]AppPacket, error) {
-	return nil, nil
+func (r *SqlLitePacketRepository) GetPackets() ([]SavedPacket, error) {
+	packets := make([]SavedPacket, 100)
+	result := r.db.Find(&packets)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return packets, nil
 }
 
-func (r *SqlLitePacketRepository) GetPacket(packetID string) (AppPacket, error) {
-	return AppPacket{}, nil
+func (r *SqlLitePacketRepository) GetPacket(packetID string) (SavedPacket, error) {
+	return SavedPacket{}, nil
 }
 
 func (r *SqlLitePacketRepository) DeletePacket(packetID string) error {
@@ -70,37 +114,14 @@ func (r *SqlLitePacketRepository) UpdatePacket(packet AppPacket) error {
 	return nil
 }
 
-// Initialize the schema for the database from schema.sql file
-func ReadSchemaFile(filename string) (string, error) {
-	pathsToTry := []string{filename}
-	if !filepath.IsAbs(filename) {
-		pathsToTry = append(pathsToTry, filepath.Join("..", filename))
-	}
-
-	var lastErr error
-	for _, path := range pathsToTry {
-		schema, err := os.ReadFile(path)
-		if err == nil {
-			return string(schema), nil
-		}
-		lastErr = err
-	}
-	return "", lastErr
-}
-func InitSchema(db *sql.DB) error {
-	if db == nil {
-		return errors.New("nil database handle")
-	}
-	schema, err := schemaFileReader("schema.sql")
+func NewSqlLitePacketRepository(dbName string) PacketRepository {
+	db, err := gorm.Open(sqlite.Open(dbName), &gorm.Config{})
 	if err != nil {
-		return err
+		log.Fatal(err)
+		return nil
 	}
-	_, err = db.Exec(schema)
-	return err
-}
+	// Migrate the schema
+	db.AutoMigrate(&SavedPacket{})
 
-func NewSqlLitePacketRepository(db *sql.DB) *SqlLitePacketRepository {
 	return &SqlLitePacketRepository{db: db}
 }
-
-var schemaFileReader = ReadSchemaFile
