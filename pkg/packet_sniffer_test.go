@@ -267,3 +267,47 @@ func (s *stubPcapWriter) WriteFileHeader(uint32, layers.LinkType) error {
 	s.headerWritten = true
 	return s.err
 }
+
+func mustBuildPacket(t *testing.T, srcIP, dstIP string, srcPort, dstPort int) gopacket.Packet {
+	t.Helper()
+
+	ipLayer := &layers.IPv4{
+		Version:  4,
+		IHL:      5,
+		TTL:      64,
+		Protocol: layers.IPProtocolTCP,
+		SrcIP:    parseIP(srcIP),
+		DstIP:    parseIP(dstIP),
+	}
+
+	tcpLayer := &layers.TCP{
+		SrcPort: layers.TCPPort(srcPort),
+		DstPort: layers.TCPPort(dstPort),
+		Seq:     1,
+		SYN:     true,
+	}
+	tcpLayer.SetNetworkLayerForChecksum(ipLayer)
+
+	buf := gopacket.NewSerializeBuffer()
+	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
+	if err := gopacket.SerializeLayers(buf, opts, ipLayer, tcpLayer); err != nil {
+		t.Fatalf("failed to serialize packet: %v", err)
+	}
+
+	return gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, gopacket.Default)
+}
+
+func parseIP(ip string) []byte {
+	var result []byte
+	var num byte
+	for i := 0; i < len(ip); i++ {
+		if ip[i] == '.' {
+			result = append(result, num)
+			num = 0
+		} else {
+			num = num*10 + (ip[i] - '0')
+		}
+	}
+	result = append(result, num)
+	return result
+}
