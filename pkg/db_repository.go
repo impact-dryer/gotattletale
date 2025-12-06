@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/gopacket"
+	"github.com/impact-dryer/gotattletale/internal/config"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -114,8 +115,8 @@ func (r *SqlLitePacketRepository) UpdatePacket(packet AppPacket) error {
 	return nil
 }
 
-func NewSqlLitePacketRepository(dbName string) PacketRepository {
-	db, err := gorm.Open(sqlite.Open(dbName), &gorm.Config{})
+func NewSqlLitePacketRepository(appconfig *config.AppConfig) PacketRepository {
+	db, err := gorm.Open(sqlite.Open(appconfig.DBName), &gorm.Config{})
 	if err != nil {
 		log.Fatal(err)
 		return nil

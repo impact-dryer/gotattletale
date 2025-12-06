@@ -11,6 +11,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/pcapgo"
+	"github.com/impact-dryer/gotattletale/internal/config"
 )
 
 type Devices struct {
@@ -140,4 +141,11 @@ func runCleanups(cleanups []func()) {
 			cleanups[i]()
 		}
 	}
+}
+
+func CreateNewDeviceAndStartSniffing(appconfig *config.AppConfig) {
+	device := Device{
+		Name: appconfig.DeviceName,
+	}
+	go device.Start()
 }
