@@ -16,7 +16,16 @@ type PacketControllerImpl struct {
 }
 
 func (controller *PacketControllerImpl) GetPackets(c *gin.Context) {
-	packets, err := controller.Service.GetPackets()
+	limit := c.GetInt("limit")
+	if limit <= 0 {
+		limit = 100
+	}
+
+	sort := c.GetString("sort")
+	if sort == "" {
+		sort = "created_at"
+	}
+	packets, err := controller.Service.GetPackets(limit, sort)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}

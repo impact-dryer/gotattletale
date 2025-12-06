@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/impact-dryer/gotattletale/internal/config"
-
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -35,7 +34,7 @@ type SavedPacket struct {
 type PacketRepository interface {
 	SavePacket(packet AppPacket) error
 	SavePackets(packets []AppPacket) error
-	GetPackets() ([]SavedPacket, error)
+	GetPackets(limit int, sort string) ([]SavedPacket, error)
 	GetPacket(packetID string) (SavedPacket, error)
 	DeletePacket(packetID string) error
 	UpdatePacket(packet AppPacket) error
@@ -94,9 +93,12 @@ func (r *SqlLitePacketRepository) SavePackets(packets []AppPacket) error {
 	return nil
 }
 
-func (r *SqlLitePacketRepository) GetPackets() ([]SavedPacket, error) {
+func (r *SqlLitePacketRepository) GetPackets(limit int, sort string) ([]SavedPacket, error) {
 	packets := make([]SavedPacket, 100)
-	result := r.db.Find(&packets)
+	if sort == "" {
+		sort = "created_at"
+	}
+	result := r.db.Order(sort + " desc").Limit(limit).Find(&packets)
 	if result.Error != nil {
 		return nil, result.Error
 	}
